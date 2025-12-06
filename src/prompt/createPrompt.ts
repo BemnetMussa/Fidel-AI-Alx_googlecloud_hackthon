@@ -37,7 +37,7 @@ export const ExplainPrompt = (
     return basePrompt;
   };
 
-// quiz prompt
+// quiz prompt - question
 export const QuizPrompt = (context: string, topic: string, grade: string, count: number) => {
   const prompt = `You are an expert Ethiopian high-school tutor and exam creator.
 
