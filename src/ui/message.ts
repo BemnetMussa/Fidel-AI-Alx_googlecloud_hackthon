@@ -18,6 +18,7 @@ import {
 import { getUserState, setUserState, pushNavigation, popNavigation, clearUserState } from "../utils/userState";
 import { searchYouTubeVideos, formatYouTubeVideos } from "../utils/youtubeSearch";
 import { generateImage } from "../utils/imageGeneration";
+import telegramifyMarkdown from 'telegramify-markdown';
 
 // Telegram message limit is 4096 characters
 const MAX_MESSAGE_LENGTH = 4096;
@@ -56,6 +57,11 @@ function splitMessage(text: string, maxLength: number = MAX_MESSAGE_LENGTH): str
   }
 
   return chunks;
+}
+
+// markdown util function
+const markDownUtil = (text: string) => {
+  return telegramifyMarkdown(text, "escape")
 }
 
 /**
@@ -204,14 +210,16 @@ export const setupStartUI = (bot: Telegraf) => {
         ? response.content
         : "No explanation generated.";
 
-      const header = `📖 <b>${topic}</b>\n\n📚 ${subject} • Grade ${grade}\n\n${"─".repeat(25)}\n\n`;
+      const header = `📖 *${topic}*\n\n📚 ${subject} • Grade ${grade}\n\n${"─".repeat(25)}\n\n`;
       const fullMessage = header + text;
+
+      const fullResponse = markDownUtil(fullMessage)
 
       // Save explanation to state
       setUserState(ctx.from!.id, { lastExplanation: text });
 
       // Split message into chunks if it's too long
-      const chunks = splitMessage(fullMessage, MAX_MESSAGE_LENGTH);
+      const chunks = splitMessage(fullResponse, MAX_MESSAGE_LENGTH);
 
       // Ensure we have at least one chunk
       if (chunks.length === 0) {
@@ -224,12 +232,12 @@ export const setupStartUI = (bot: Telegraf) => {
         loadingMsg.message_id,
         undefined,
         `${chunks[0]!}`,
-        { parse_mode: "HTML" }
+        { parse_mode: "MarkdownV2" }
       );
 
       // Send remaining chunks as new messages
       for (let i = 1; i < chunks.length; i++) {
-        await ctx.reply(`${chunks[i]!}`, { parse_mode: "HTML" });
+        await ctx.reply(`${chunks[i]!}`, { parse_mode: "MarkdownV2" });
       }
 
       // Send post-explanation menu
@@ -316,13 +324,18 @@ export const setupStartUI = (bot: Telegraf) => {
 
         const answer = typeof response.content === "string" ? response.content : "I couldn't generate an answer.";
 
+        const header = `💬 *Your Question:*\n${text}\n\n${"─".repeat(25)}\n\n✨ *Answer:*\n\n`
+        const fullMessage = header + answer
+
+        const fullResponse = markDownUtil(fullMessage)
+
         // Update loading message
         await ctx.telegram.editMessageText(
           ctx.chat!.id,
           loadingMsg.message_id,
           undefined,
-          `💬 <b>Your Question:</b>\n${text}\n\n${"─".repeat(25)}\n\n✨ <b>Answer:</b>\n\n${answer}`,
-          { parse_mode: "HTML" }
+          `${fullResponse}`,
+          { parse_mode: "MarkdownV2" }
         );
 
         // Save answer as last explanation for summary
@@ -379,12 +392,18 @@ export const setupStartUI = (bot: Telegraf) => {
 
       const summary = typeof response.content === "string" ? response.content : "Could not generate summary.";
 
+      const header = `📖 *Lesson Summary*\n\n`
+
+      const fullMessage = header + summary
+
+      const fullResponse = markDownUtil(fullMessage)
+
       await ctx.telegram.editMessageText(
         ctx.chat!.id,
         loadingMsg.message_id,
         undefined,
-        `📖 <b>Lesson Summary</b>\n\n${summary}`,
-        { parse_mode: "HTML" }
+        `${fullResponse}`,
+        { parse_mode: "MarkdownV2" }
       );
 
       await sendPostExplanationMenu(ctx);
@@ -438,6 +457,12 @@ export const setupStartUI = (bot: Telegraf) => {
 
       const content = typeof response.content === "string" ? response.content : "{}";
 
+      const header = `🧑 <b>Practice Questions</b>\n\n`
+
+      const fullMessage = header + content
+
+      const fullResponse = markDownUtil(fullMessage)
+
       // Try to parse JSON response
       let quizData: any;
       try {
@@ -451,15 +476,17 @@ export const setupStartUI = (bot: Telegraf) => {
           ctx.chat!.id,
           loadingMsg.message_id,
           undefined,
-          `🧑 <b>Practice Questions</b>\n\n${content}`,
-          { parse_mode: "HTML" }
+          `${fullResponse}`,
+          { parse_mode: "MarkdownV2" }
         );
         await sendPostExplanationMenu(ctx);
         return;
       }
 
       // Format quiz questions
-      let quizText = `🧑 <b>Practice Questions: ${quizData.topic || state.topic}</b>\n\n`;
+      let fullQuiz = `🧑 *Practice Questions: ${quizData.topic || state.topic}*\n\n`;
+
+      let quizText = markDownUtil(fullQuiz)
       
       if (quizData.questions && Array.isArray(quizData.questions)) {
         quizData.questions.forEach((q: any, index: number) => {
@@ -480,16 +507,17 @@ export const setupStartUI = (bot: Telegraf) => {
       }
 
       const chunks = splitMessage(quizText, MAX_MESSAGE_LENGTH);
+
       await ctx.telegram.editMessageText(
         ctx.chat!.id,
         loadingMsg.message_id,
         undefined,
         chunks[0]!,
-        { parse_mode: "HTML" }
+        { parse_mode: "MarkdownV2" }
       );
 
       for (let i = 1; i < chunks.length; i++) {
-        await ctx.reply(chunks[i]!, { parse_mode: "HTML" });
+        await ctx.reply(chunks[i]!, { parse_mode: "MarkdownV2" });
       }
 
       await sendPostExplanationMenu(ctx);
